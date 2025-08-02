@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kape ni Emman - Loyalty Points Scanner</title>
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #8B4513, #D2691E);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 500px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .header h1 {
+            color: #8B4513;
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            color: #666;
+            font-size: 16px;
+        }
+        
+        .scanner-section {
+            margin-bottom: 30px;
+        }
+        
+        .scan-btn {
+            width: 100%;
+            background: linear-gradient(45deg, #8B4513, #D2691E);
+            color: white;
+            border: none;
+            padding: 15px 20px;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        
+        .scan-btn:hover {
+            transform: translateY(-2px);
+        }
+        
+        .scan-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        #qr-reader {
+            margin: 20px auto;
+            border-radius: 10px;
+            overflow: hidden;
+            display: none;
+        }
+        
+        .result-card {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 25px;
+            margin-top: 20px;
+            display: none;
+            border-left: 5px solid #8B4513;
+        }
+        
+        .customer-name {
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 15px;
+        }
+        
+        .points-display {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .current-points {
+            background: linear-gradient(45deg, #28a745, #20c997);
+            color: white;
+            padding: 15px 20px;
+            border-radius: 10px;
+            text-align: center;
+            flex: 1;
+            margin-right: 10px;
+        }
+        
+        .needed-points {
+            background: linear-gradient(45deg, #fd7e14, #ffc107);
+            color: white;
+            padding: 15px 20px;
+            border-radius: 10px;
+            text-align: center;
+            flex: 1;
+            margin-left: 10px;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #e9ecef;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 15px;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(45deg, #28a745, #20c997);
+            transition: width 0.5s ease;
+        }
+        
+        .reward-status {
+            text-align: center;
+            padding: 15px;
+            border-radius: 10px;
+            font-weight: bold;
+            margin-top: 15px;
+        }
+        
+        .reward-available {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .reward-progress {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        
+        .error-message {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 15px;
+            display: none;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+            display: none;
+        }
+        
+        .staff-section {
+            margin-top: 40px;
+            padding-top: 30px;
+            border-top: 2px solid #e9ecef;
+        }
+        
+        .staff-section h2 {
+            color: #8B4513;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .add-points-section {
+            display: none;
+            margin-top: 20px;
+        }
+        
+        .points-input {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .points-input input {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+        
+        .add-btn {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>☕ Kape ni Emman</h1>
+            <p>Loyalty Points Scanner</p>
+        </div>
+        
+        <!-- Customer Section -->
+        <div class="scanner-section">
+            <button id="scan-btn" class="scan-btn">📱 Scan QR Code to Check Points</button>
+            <div id="qr-reader"></div>
+            
+            <div class="loading" id="loading">
+                <p>🔍 Looking up your points...</p>
+            </div>
+            
+            <div class="error-message" id="error-message"></div>
+            
+            <div class="result-card" id="result-card">
+                <div class="customer-name" id="customer-name"></div>
+                
+                <div class="points-display">
+                    <div class="current-points">
+                        <div style="font-size: 12px; margin-bottom: 5px;">CURRENT POINTS</div>
+                        <div style="font-size: 28px; font-weight: bold;" id="current-points">0</div>
+                    </div>
+                    <div class="needed-points">
+                        <div style="font-size: 12px; margin-bottom: 5px;">POINTS NEEDED</div>
+                        <div style="font-size: 28px; font-weight: bold;" id="needed-points">100</div>
+                    </div>
+                </div>
+                
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progress-fill"></div>
+                </div>
+                
+                <div class="reward-status" id="reward-status"></div>
+            </div>
+        </div>
+        
+        <!-- Staff Section -->
+        <div class="staff-section">
+            <h2>👨‍💼 Staff: Add Points</h2>
+            <button id="staff-scan-btn" class="scan-btn">📱 Scan to Add Points</button>
+            
+            <div class="add-points-section" id="add-points-section">
+                <div class="points-input">
+                    <input type="number" id="points-to-add" placeholder="Enter points to add" min="1" max="50" value="10">
+                    <button class="add-btn" id="add-points-btn">Add Points</button>
+                </div>
+                <p style="color: #666; font-size: 14px; text-align: center;">Customer: <span id="staff-customer-name">-</span></p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const SHEET_ID = '1arfuqxGfXoYAzyZB3ZnLkByEAaQ1_j1VAFkAdeGPG24';
+        const API_KEY = 'YOUR_API_KEY_HERE'; // Replace with your actual API key
+        const RANGE = 'Sheet1!A:F'; // Adjust range as needed
+        const POINTS_FOR_FREE_COFFEE = 100;
+        
+        // Sample data (fallback for demo purposes)
+        const SAMPLE_DATA = {
+            'QR001': { name: 'Juan Dela Cruz', phone: '09123456789', points: 85 },
+            'QR002': { name: 'Maria Santos', phone: '09987654321', points: 120 },
+            'QR003': { name: 'Pedro Garcia', phone: '09456789123', points: 45 },
+            'QR004': { name: 'Ana Reyes', phone: '09789123456', points: 200 },
+            'QR005': { name: 'Jose Rizal', phone: '09321654987', points: 15 }
+        };
+        
+        let html5QrCode = null;
+        let currentCustomerQR = null;
+        
+        // Elements
+        const scanBtn = document.getElementById('scan-btn');
+        const staffScanBtn = document.getElementById('staff-scan-btn');
+        const qrReader = document.getElementById('qr-reader');
+        const loading = document.getElementById('loading');
+        const errorMessage = document.getElementById('error-message');
+        const resultCard = document.getElementById('result-card');
+        const addPointsSection = document.getElementById('add-points-section');
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            scanBtn.addEventListener('click', startScanning);
+            staffScanBtn.addEventListener('click', startStaffScanning);
+            document.getElementById('add-points-btn').addEventListener('click', addPoints);
+        });
+        
+        function startScanning() {
+            startQRScanner('customer');
+        }
+        
+        function startStaffScanning() {
+            startQRScanner('staff');
+        }
+        
+        function startQRScanner(mode) {
+            const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+            
+            html5QrCode = new Html5Qrcode("qr-reader");
+            qrReader.style.display = 'block';
+            
+            const btn = mode === 'customer' ? scanBtn : staffScanBtn;
+            btn.textContent = '⏹️ Stop Scanning';
+            btn.disabled = true;
+            
+            html5QrCode.start(
+                { facingMode: "environment" },
+                config,
+                (decodedText, decodedResult) => {
+                    onScanSuccess(decodedText, mode);
+                },
+                (errorMessage) => {
+                    // Ignore scan errors - they're continuous
+                }
+            ).catch(err => {
+                console.error('Camera error:', err);
+                showError('Camera access denied or not available. Please allow camera access and try again.');
+                resetScanner();
+            });
+        }
+        
+        function onScanSuccess(qrCode, mode) {
+            stopScanning();
+            
+            if (mode === 'customer') {
+                lookupCustomer(qrCode);
+            } else {
+                setupStaffInterface(qrCode);
+            }
+        }
+        
+        function stopScanning() {
+            if (html5QrCode) {
+                html5QrCode.stop().then(() => {
+                    resetScanner();
+                }).catch(err => {
+                    console.error('Error stopping scanner:', err);
+                    resetScanner();
+                });
+            }
+        }
+        
+        function resetScanner() {
+            qrReader.style.display = 'none';
+            scanBtn.textContent = '📱 Scan QR Code to Check Points';
+            staffScanBtn.textContent = '📱 Scan to Add Points';
+            scanBtn.disabled = false;
+            staffScanBtn.disabled = false;
+            html5QrCode = null;
+        }
+        
+        async function lookupCustomer(qrCode) {
+            loading.style.display = 'block';
+            hideError();
+            resultCard.style.display = 'none';
+            
+            try {
+                // For demo purposes, use sample data
+                // In production, this would fetch from Google Sheets API
+                const customer = SAMPLE_DATA[qrCode];
+                
+                if (customer) {
+                    displayCustomerInfo(customer, qrCode);
+                } else {
+                    showError(`QR Code "${qrCode}" not found. Please check with staff.`);
+                }
+            } catch (error) {
+                console.error('Lookup error:', error);
+                showError('Unable to lookup customer data. Please try again.');
+            } finally {
+                loading.style.display = 'none';
+            }
+        }
+        
+        function displayCustomerInfo(customer, qrCode) {
+            const pointsNeeded = Math.max(0, POINTS_FOR_FREE_COFFEE - customer.points);
+            const progressPercent = Math.min(100, (customer.points / POINTS_FOR_FREE_COFFEE) * 100);
+            
+            document.getElementById('customer-name').textContent = customer.name;
+            document.getElementById('current-points').textContent = customer.points;
+            document.getElementById('needed-points').textContent = pointsNeeded;
+            document.getElementById('progress-fill').style.width = progressPercent + '%';
+            
+            const rewardStatus = document.getElementById('reward-status');
+            if (customer.points >= POINTS_FOR_FREE_COFFEE) {
+                rewardStatus.textContent = '🎉 Congratulations! You have earned a FREE COFFEE!';
+                rewardStatus.className = 'reward-status reward-available';
+            } else {
+                rewardStatus.textContent = `☕ ${pointsNeeded} more points for your free coffee!`;
+                rewardStatus.className = 'reward-status reward-progress';
+            }
+            
+            resultCard.style.display = 'block';
+            currentCustomerQR = qrCode;
+        }
+        
+        function setupStaffInterface(qrCode) {
+            const customer = SAMPLE_DATA[qrCode];
+            if (customer) {
+                document.getElementById('staff-customer-name').textContent = customer.name;
+                addPointsSection.style.display = 'block';
+                currentCustomerQR = qrCode;
+            } else {
+                showError(`QR Code "${qrCode}" not found.`);
+            }
+        }
+        
+        function addPoints() {
+            const pointsToAdd = parseInt(document.getElementById('points-to-add').value);
+            
+            if (!pointsToAdd || pointsToAdd < 1) {
+                showError('Please enter a valid number of points.');
+                return;
+            }
+            
+            if (!currentCustomerQR) {
+                showError('Please scan a customer QR code first.');
+                return;
+            }
+            
+            // Update sample data (in production, this would update Google Sheets)
+            SAMPLE_DATA[currentCustomerQR].points += pointsToAdd;
+            
+            alert(`✅ Successfully added ${pointsToAdd} points to ${SAMPLE_DATA[currentCustomerQR].name}!\nNew total: ${SAMPLE_DATA[currentCustomerQR].points} points`);
+            
+            // Reset
+            addPointsSection.style.display = 'none';
+            document.getElementById('points-to-add').value = '10';
+            currentCustomerQR = null;
+        }
+        
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.style.display = 'block';
+        }
+        
+        function hideError() {
+            errorMessage.style.display = 'none';
+        }
+        
+        // Google Sheets API function (for production use)
+        async function fetchFromGoogleSheets() {
+            const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${RANGE}?key=${API_KEY}`;
+            
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                return data.values;
+            } catch (error) {
+                console.error('Google Sheets API error:', error);
+                throw error;
+            }
+        }
+    </script>
+</body>
+</html>
