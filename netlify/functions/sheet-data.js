@@ -1,5 +1,3 @@
-const { GoogleAuth } = require('google-auth-library');
-
 exports.handler = async (event, context) => {
     // Enable CORS
     const headers = {
@@ -27,32 +25,23 @@ exports.handler = async (event, context) => {
 
     try {
         const SHEET_ID = '1arfuqxGfXoYAzyZB3ZnLkByEAaQ1_j1VAFkAdeGPG24';
+        const API_KEY = process.env.GOOGLE_SHEETS_API_KEY;
         const RANGE = 'Sheet1!A:F';
 
-        // Check if service account credentials exist
-        const serviceAccountKey = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
-        if (!serviceAccountKey) {
-            console.error('GOOGLE_SERVICE_ACCOUNT_KEY environment variable not set');
+        // Check if API key exists
+        if (!API_KEY) {
+            console.error('GOOGLE_SHEETS_API_KEY environment variable not set');
             return {
                 statusCode: 500,
                 headers,
-                body: JSON.stringify({ error: 'Service account key not configured' })
+                body: JSON.stringify({ error: 'API key not configured' })
             };
         }
 
-        // Parse the service account key
-        const credentials = JSON.parse(serviceAccountKey);
+        const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${RANGE}?key=${API_KEY}`;
         
-        // Initialize Google Auth
-        const auth = new GoogleAuth({
-            credentials: credentials,
-            scopes: ['https://www.googleapis.com/auth/spreadsheets']
-        });
-
-        // Get access token
-        const authClient = await auth.getClient();
-        const accessToken = await authClient.getAccessToken();
-
+        console.log('Fetching from Google Sheets with API key...');
+        
         // Use global fetch or import node-fetch
         let fetchFunction;
         if (typeof fetch === 'undefined') {
@@ -61,17 +50,8 @@ exports.handler = async (event, context) => {
         } else {
             fetchFunction = fetch;
         }
-
-        const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${RANGE}`;
         
-        console.log('Fetching sheet data with service account...');
-        
-        const response = await fetchFunction(url, {
-            headers: {
-                'Authorization': `Bearer ${accessToken.token}`,
-                'Content-Type': 'application/json'
-            }
-        });
+        const response = await fetchFunction(url);
         
         if (!response.ok) {
             console.error('Google Sheets API error:', response.status, response.statusText);
