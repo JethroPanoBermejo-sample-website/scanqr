@@ -1,3 +1,5 @@
+const { GoogleAuth } = require('google-auth-library');
+
 exports.handler = async (event, context) => {
     // Enable CORS
     const headers = {
@@ -35,21 +37,34 @@ exports.handler = async (event, context) => {
         }
 
         const SHEET_ID = '1arfuqxGfXoYAzyZB3ZnLkByEAaQ1_j1VAFkAdeGPG24';
-        const API_KEY = process.env.GOOGLE_SHEETS_API_KEY;
         
-        // Check if API key exists
-        if (!API_KEY) {
-            console.error('GOOGLE_SHEETS_API_KEY environment variable not set');
+        // Check if service account credentials exist
+        const serviceAccountKey = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
+        if (!serviceAccountKey) {
+            console.error('GOOGLE_SERVICE_ACCOUNT_KEY environment variable not set');
             return {
                 statusCode: 500,
                 headers,
-                body: JSON.stringify({ error: 'API key not configured' })
+                body: JSON.stringify({ error: 'Service account key not configured' })
             };
         }
+
+        // Parse the service account key
+        const credentials = JSON.parse(serviceAccountKey);
+        
+        // Initialize Google Auth
+        const auth = new GoogleAuth({
+            credentials: credentials,
+            scopes: ['https://www.googleapis.com/auth/spreadsheets']
+        });
+
+        // Get access token
+        const authClient = await auth.getClient();
+        const accessToken = await authClient.getAccessToken();
         
         const currentDate = new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString();
         
-        const updateUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/Sheet1!E${rowIndex}:F${rowIndex}?valueInputOption=RAW&key=${API_KEY}`;
+        const updateUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/Sheet1!E${rowIndex}:F${rowIndex}?valueInputOption=RAW`;
         
         console.log('Updating row:', rowIndex, 'with points:', newPoints);
         
@@ -65,6 +80,7 @@ exports.handler = async (event, context) => {
         const response = await fetchFunction(updateUrl, {
             method: 'PUT',
             headers: {
+                'Authorization': `Bearer ${accessToken.token}`,
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
