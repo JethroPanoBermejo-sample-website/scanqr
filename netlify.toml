@@ -1,0 +1,12 @@
+[build]
+  functions = "netlify/functions"
+
+[[redirects]]
+  from = "/api/sheet-data"
+  to = "/.netlify/functions/sheet-data"
+  status = 200
+
+[[redirects]]
+  from = "/api/update-points"
+  to = "/.netlify/functions/update-points"
+  status = 200
