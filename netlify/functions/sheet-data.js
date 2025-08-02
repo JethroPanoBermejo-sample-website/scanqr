@@ -1,3 +1,5 @@
+const { GoogleAuth } = require('google-auth-library');
+
 exports.handler = async (event, context) => {
     // Enable CORS
     const headers = {
@@ -15,7 +17,7 @@ exports.handler = async (event, context) => {
         };
     }
 
-    if (event.httpMethod !== 'GET') {
+    if (event.httpMethod !== 'PUT') {
         return {
             statusCode: 405,
             headers,
@@ -24,23 +26,47 @@ exports.handler = async (event, context) => {
     }
 
     try {
-        const SHEET_ID = '1arfuqxGfXoYAzyZB3ZnLkByEAaQ1_j1VAFkAdeGPG24';
-        const API_KEY = process.env.GOOGLE_SHEETS_API_KEY;
-        const RANGE = 'Sheet1!A:F';
-
-        // Check if API key exists
-        if (!API_KEY) {
-            console.error('GOOGLE_SHEETS_API_KEY environment variable not set');
+        const { rowIndex, newPoints } = JSON.parse(event.body);
+        
+        if (!rowIndex || newPoints === undefined) {
             return {
-                statusCode: 500,
+                statusCode: 400,
                 headers,
-                body: JSON.stringify({ error: 'API key not configured' })
+                body: JSON.stringify({ error: 'Missing rowIndex or newPoints' })
             };
         }
 
-        const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${RANGE}?key=${API_KEY}`;
+        const SHEET_ID = '1arfuqxGfXoYAzyZB3ZnLkByEAaQ1_j1VAFkAdeGPG24';
         
-        console.log('Fetching from URL:', url.replace(API_KEY, 'API_KEY_HIDDEN'));
+        // Check if service account credentials exist
+        const serviceAccountKey = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
+        if (!serviceAccountKey) {
+            console.error('GOOGLE_SERVICE_ACCOUNT_KEY environment variable not set');
+            return {
+                statusCode: 500,
+                headers,
+                body: JSON.stringify({ error: 'Service account key not configured' })
+            };
+        }
+
+        // Parse the service account key
+        const credentials = JSON.parse(serviceAccountKey);
+        
+        // Initialize Google Auth
+        const auth = new GoogleAuth({
+            credentials: credentials,
+            scopes: ['https://www.googleapis.com/auth/spreadsheets']
+        });
+
+        // Get access token
+        const authClient = await auth.getClient();
+        const accessToken = await authClient.getAccessToken();
+        
+        const currentDate = new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString();
+        
+        const updateUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/Sheet1!E${rowIndex}:F${rowIndex}?valueInputOption=RAW`;
+        
+        console.log('Updating row:', rowIndex, 'with points:', newPoints);
         
         // Use global fetch or import node-fetch
         let fetchFunction;
@@ -51,30 +77,38 @@ exports.handler = async (event, context) => {
             fetchFunction = fetch;
         }
         
-        const response = await fetchFunction(url);
+        const response = await fetchFunction(updateUrl, {
+            method: 'PUT',
+            headers: {
+                'Authorization': `Bearer ${accessToken.token}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                values: [[newPoints, currentDate]]
+            })
+        });
         
         if (!response.ok) {
-            console.error('Google Sheets API error:', response.status, response.statusText);
-            const errorText = await response.text();
-            console.error('Error response:', errorText);
-            throw new Error(`HTTP error! status: ${response.status}`);
+            const errorData = await response.json();
+            console.error('Google Sheets update error:', errorData);
+            throw new Error(`HTTP error! status: ${response.status} - ${errorData.error?.message || 'Unknown error'}`);
         }
         
-        const data = await response.json();
+        const result = await response.json();
         
         return {
             statusCode: 200,
             headers,
-            body: JSON.stringify(data)
+            body: JSON.stringify(result)
         };
         
     } catch (error) {
-        console.error('Error fetching sheet data:', error);
+        console.error('Error updating points:', error);
         return {
             statusCode: 500,
             headers,
             body: JSON.stringify({ 
-                error: 'Failed to fetch sheet data',
+                error: 'Failed to update points',
                 details: error.message 
             })
         };
