@@ -37,11 +37,32 @@ exports.handler = async (event, context) => {
         const SHEET_ID = '1arfuqxGfXoYAzyZB3ZnLkByEAaQ1_j1VAFkAdeGPG24';
         const API_KEY = process.env.GOOGLE_SHEETS_API_KEY;
         
+        // Check if API key exists
+        if (!API_KEY) {
+            console.error('GOOGLE_SHEETS_API_KEY environment variable not set');
+            return {
+                statusCode: 500,
+                headers,
+                body: JSON.stringify({ error: 'API key not configured' })
+            };
+        }
+        
         const currentDate = new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString();
         
         const updateUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/Sheet1!E${rowIndex}:F${rowIndex}?valueInputOption=RAW&key=${API_KEY}`;
         
-        const response = await fetch(updateUrl, {
+        console.log('Updating row:', rowIndex, 'with points:', newPoints);
+        
+        // Use global fetch or import node-fetch
+        let fetchFunction;
+        if (typeof fetch === 'undefined') {
+            const { default: nodeFetch } = await import('node-fetch');
+            fetchFunction = nodeFetch;
+        } else {
+            fetchFunction = fetch;
+        }
+        
+        const response = await fetchFunction(updateUrl, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -53,6 +74,7 @@ exports.handler = async (event, context) => {
         
         if (!response.ok) {
             const errorData = await response.json();
+            console.error('Google Sheets update error:', errorData);
             throw new Error(`HTTP error! status: ${response.status} - ${errorData.error?.message || 'Unknown error'}`);
         }
         
@@ -69,7 +91,10 @@ exports.handler = async (event, context) => {
         return {
             statusCode: 500,
             headers,
-            body: JSON.stringify({ error: 'Failed to update points' })
+            body: JSON.stringify({ 
+                error: 'Failed to update points',
+                details: error.message 
+            })
         };
     }
 };
