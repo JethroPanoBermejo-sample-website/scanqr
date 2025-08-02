@@ -259,6 +259,10 @@
             <h2>👨‍💼 Staff: Add Points</h2>
             <button id="staff-scan-btn" class="scan-btn">📱 Scan to Add Points</button>
             
+            <div style="margin: 15px 0;">
+                <button id="refresh-data-btn" class="scan-btn" style="background: linear-gradient(45deg, #17a2b8, #138496); margin-bottom: 10px;">🔄 Refresh Customer Data</button>
+            </div>
+            
             <div class="add-points-section" id="add-points-section">
                 <div class="points-input">
                     <input type="number" id="points-to-add" placeholder="Enter points to add" min="1" max="50" value="10">
@@ -272,18 +276,12 @@
     <script>
         // Configuration
         const SHEET_ID = '1arfuqxGfXoYAzyZB3ZnLkByEAaQ1_j1VAFkAdeGPG24';
-        const API_KEY = 'GOOGLE_SHEETS_API_KEY'; // Replace with your actual API key
-        const RANGE = 'Sheet1!A:F'; // Adjust range as needed
+        // API_KEY is now handled securely on the server-side
         const POINTS_FOR_FREE_COFFEE = 100;
         
-        // Sample data (fallback for demo purposes)
-        const SAMPLE_DATA = {
-            'QR001': { name: 'Juan Dela Cruz', phone: '09123456789', points: 85 },
-            'QR002': { name: 'Maria Santos', phone: '09987654321', points: 120 },
-            'QR003': { name: 'Pedro Garcia', phone: '09456789123', points: 45 },
-            'QR004': { name: 'Ana Reyes', phone: '09789123456', points: 200 },
-            'QR005': { name: 'Jose Rizal', phone: '09321654987', points: 15 }
-        };
+        // Cache for sheet data
+        let sheetData = {};
+        let isDataLoaded = false;
         
         let html5QrCode = null;
         let currentCustomerQR = null;
@@ -302,7 +300,63 @@
             scanBtn.addEventListener('click', startScanning);
             staffScanBtn.addEventListener('click', startStaffScanning);
             document.getElementById('add-points-btn').addEventListener('click', addPoints);
+            document.getElementById('refresh-data-btn').addEventListener('click', refreshData);
+            
+            // Load initial data from Google Sheets
+            loadSheetData();
         });
+        
+        // Refresh data manually
+        async function refreshData() {
+            const refreshBtn = document.getElementById('refresh-data-btn');
+            refreshBtn.disabled = true;
+            refreshBtn.textContent = '🔄 Refreshing...';
+            
+            try {
+                isDataLoaded = false;
+                await loadSheetData();
+                alert('✅ Customer data refreshed successfully!');
+            } catch (error) {
+                showError('Failed to refresh data. Please try again.');
+            } finally {
+                refreshBtn.disabled = false;
+                refreshBtn.textContent = '🔄 Refresh Customer Data';
+            }
+        }
+        
+        // Load data from Google Sheets
+        async function loadSheetData() {
+            try {
+                const data = await fetchFromGoogleSheets();
+                if (data && data.length > 1) {
+                    // Convert sheet data to our format
+                    sheetData = {};
+                    for (let i = 1; i < data.length; i++) { // Skip header row
+                        const row = data[i];
+                        if (row.length >= 4) {
+                            const qrCode = row[1]; // Column B: QR_Code
+                            const name = row[2];   // Column C: Customer_Name
+                            const phone = row[3];  // Column D: Phone
+                            const points = parseInt(row[4]) || 0; // Column E: Points
+                            
+                            sheetData[qrCode] = {
+                                name: name,
+                                phone: phone,
+                                points: points,
+                                rowIndex: i + 1 // Store row index for updates (1-based)
+                            };
+                        }
+                    }
+                    isDataLoaded = true;
+                    console.log('Sheet data loaded successfully');
+                } else {
+                    console.error('No data found in sheet');
+                }
+            } catch (error) {
+                console.error('Error loading sheet data:', error);
+                showError('Unable to load customer data. Please check your internet connection.');
+            }
+        }
         
         function startScanning() {
             startQRScanner('customer');
@@ -374,9 +428,12 @@
             resultCard.style.display = 'none';
             
             try {
-                // For demo purposes, use sample data
-                // In production, this would fetch from Google Sheets API
-                const customer = SAMPLE_DATA[qrCode];
+                // Ensure we have the latest data
+                if (!isDataLoaded) {
+                    await loadSheetData();
+                }
+                
+                const customer = sheetData[qrCode];
                 
                 if (customer) {
                     displayCustomerInfo(customer, qrCode);
@@ -414,7 +471,7 @@
         }
         
         function setupStaffInterface(qrCode) {
-            const customer = SAMPLE_DATA[qrCode];
+            const customer = sheetData[qrCode];
             if (customer) {
                 document.getElementById('staff-customer-name').textContent = customer.name;
                 addPointsSection.style.display = 'block';
@@ -424,7 +481,7 @@
             }
         }
         
-        function addPoints() {
+        async function addPoints() {
             const pointsToAdd = parseInt(document.getElementById('points-to-add').value);
             
             if (!pointsToAdd || pointsToAdd < 1) {
@@ -437,15 +494,57 @@
                 return;
             }
             
-            // Update sample data (in production, this would update Google Sheets)
-            SAMPLE_DATA[currentCustomerQR].points += pointsToAdd;
+            try {
+                // Show loading state
+                document.getElementById('add-points-btn').disabled = true;
+                document.getElementById('add-points-btn').textContent = 'Adding...';
+                
+                const customer = sheetData[currentCustomerQR];
+                const newPoints = customer.points + pointsToAdd;
+                
+                // Update Google Sheets
+                await updatePointsInSheet(customer.rowIndex, newPoints);
+                
+                // Update local data
+                sheetData[currentCustomerQR].points = newPoints;
+                
+                alert(`✅ Successfully added ${pointsToAdd} points to ${customer.name}!\nNew total: ${newPoints} points`);
+                
+                // Reset
+                addPointsSection.style.display = 'none';
+                document.getElementById('points-to-add').value = '10';
+                currentCustomerQR = null;
+                
+            } catch (error) {
+                console.error('Error adding points:', error);
+                showError('Failed to add points. Please try again.');
+            } finally {
+                // Reset button
+                document.getElementById('add-points-btn').disabled = false;
+                document.getElementById('add-points-btn').textContent = 'Add Points';
+            }
+        }
+        
+        // Update points in Google Sheets via secure API
+        async function updatePointsInSheet(rowIndex, newPoints) {
+            const response = await fetch('/api/update-points', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    rowIndex: rowIndex,
+                    newPoints: newPoints
+                })
+            });
             
-            alert(`✅ Successfully added ${pointsToAdd} points to ${SAMPLE_DATA[currentCustomerQR].name}!\nNew total: ${SAMPLE_DATA[currentCustomerQR].points} points`);
+            if (!response.ok) {
+                const errorData = await response.json();
+                console.error('API Error:', errorData);
+                throw new Error(`HTTP error! status: ${response.status} - ${errorData.error || 'Unknown error'}`);
+            }
             
-            // Reset
-            addPointsSection.style.display = 'none';
-            document.getElementById('points-to-add').value = '10';
-            currentCustomerQR = null;
+            return await response.json();
         }
         
         function showError(message) {
@@ -457,13 +556,21 @@
             errorMessage.style.display = 'none';
         }
         
-        // Google Sheets API function (for production use)
+        // Google Sheets API function via secure backend
         async function fetchFromGoogleSheets() {
-            const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${RANGE}?key=${API_KEY}`;
-            
             try {
-                const response = await fetch(url);
+                const response = await fetch('/api/sheet-data');
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
                 const data = await response.json();
+                
+                if (!data.values) {
+                    throw new Error('No data found in the sheet');
+                }
+                
                 return data.values;
             } catch (error) {
                 console.error('Google Sheets API error:', error);
