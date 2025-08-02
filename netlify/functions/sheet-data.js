@@ -28,11 +28,35 @@ exports.handler = async (event, context) => {
         const API_KEY = process.env.GOOGLE_SHEETS_API_KEY;
         const RANGE = 'Sheet1!A:F';
 
+        // Check if API key exists
+        if (!API_KEY) {
+            console.error('GOOGLE_SHEETS_API_KEY environment variable not set');
+            return {
+                statusCode: 500,
+                headers,
+                body: JSON.stringify({ error: 'API key not configured' })
+            };
+        }
+
         const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${RANGE}?key=${API_KEY}`;
         
-        const response = await fetch(url);
+        console.log('Fetching from URL:', url.replace(API_KEY, 'API_KEY_HIDDEN'));
+        
+        // Use global fetch or import node-fetch
+        let fetchFunction;
+        if (typeof fetch === 'undefined') {
+            const { default: nodeFetch } = await import('node-fetch');
+            fetchFunction = nodeFetch;
+        } else {
+            fetchFunction = fetch;
+        }
+        
+        const response = await fetchFunction(url);
         
         if (!response.ok) {
+            console.error('Google Sheets API error:', response.status, response.statusText);
+            const errorText = await response.text();
+            console.error('Error response:', errorText);
             throw new Error(`HTTP error! status: ${response.status}`);
         }
         
@@ -49,7 +73,10 @@ exports.handler = async (event, context) => {
         return {
             statusCode: 500,
             headers,
-            body: JSON.stringify({ error: 'Failed to fetch sheet data' })
+            body: JSON.stringify({ 
+                error: 'Failed to fetch sheet data',
+                details: error.message 
+            })
         };
     }
 };
