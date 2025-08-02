@@ -34,22 +34,20 @@ exports.handler = async (event, context) => {
             };
         }
 
-        const SHEET_ID = '1arfuqxGfXoYAzyZB3ZnLkByEAaQ1_j1VAFkAdeGPG24';
-        const API_KEY = process.env.GOOGLE_SHEETS_API_KEY;
+        // Use Google Apps Script webhook for writing data
+        const APPS_SCRIPT_URL = process.env.GOOGLE_APPS_SCRIPT_URL;
         
-        // Check if API key exists
-        if (!API_KEY) {
-            console.error('GOOGLE_SHEETS_API_KEY environment variable not set');
+        // Check if Apps Script URL exists
+        if (!APPS_SCRIPT_URL) {
+            console.error('GOOGLE_APPS_SCRIPT_URL environment variable not set');
             return {
                 statusCode: 500,
                 headers,
-                body: JSON.stringify({ error: 'API key not configured' })
+                body: JSON.stringify({ error: 'Apps Script URL not configured. Please set up Google Apps Script webhook.' })
             };
         }
         
         const currentDate = new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString();
-        
-        const updateUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/Sheet1!E${rowIndex}:F${rowIndex}?valueInputOption=RAW&key=${API_KEY}`;
         
         console.log('Updating row:', rowIndex, 'with points:', newPoints);
         
@@ -62,20 +60,23 @@ exports.handler = async (event, context) => {
             fetchFunction = fetch;
         }
         
-        const response = await fetchFunction(updateUrl, {
-            method: 'PUT',
+        const response = await fetchFunction(APPS_SCRIPT_URL, {
+            method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                values: [[newPoints, currentDate]]
+                action: 'updatePoints',
+                rowIndex: rowIndex,
+                newPoints: newPoints,
+                timestamp: currentDate
             })
         });
         
         if (!response.ok) {
-            const errorData = await response.json();
-            console.error('Google Sheets update error:', errorData);
-            throw new Error(`HTTP error! status: ${response.status} - ${errorData.error?.message || 'Unknown error'}`);
+            const errorText = await response.text();
+            console.error('Google Apps Script error:', response.status, errorText);
+            throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
         }
         
         const result = await response.json();
