@@ -10,3 +10,8 @@
   from = "/api/update-points"
   to = "/.netlify/functions/update-points"
   status = 200
+
+[[redirects]]
+  from = "/api/test"
+  to = "/.netlify/functions/test"
+  status = 200
