@@ -17,7 +17,7 @@ exports.handler = async (event, context) => {
         };
     }
 
-    if (event.httpMethod !== 'PUT') {
+    if (event.httpMethod !== 'GET') {
         return {
             statusCode: 405,
             headers,
@@ -26,18 +26,9 @@ exports.handler = async (event, context) => {
     }
 
     try {
-        const { rowIndex, newPoints } = JSON.parse(event.body);
-        
-        if (!rowIndex || newPoints === undefined) {
-            return {
-                statusCode: 400,
-                headers,
-                body: JSON.stringify({ error: 'Missing rowIndex or newPoints' })
-            };
-        }
-
         const SHEET_ID = '1arfuqxGfXoYAzyZB3ZnLkByEAaQ1_j1VAFkAdeGPG24';
-        
+        const RANGE = 'Sheet1!A:F';
+
         // Check if service account credentials exist
         const serviceAccountKey = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
         if (!serviceAccountKey) {
@@ -61,13 +52,7 @@ exports.handler = async (event, context) => {
         // Get access token
         const authClient = await auth.getClient();
         const accessToken = await authClient.getAccessToken();
-        
-        const currentDate = new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString();
-        
-        const updateUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/Sheet1!E${rowIndex}:F${rowIndex}?valueInputOption=RAW`;
-        
-        console.log('Updating row:', rowIndex, 'with points:', newPoints);
-        
+
         // Use global fetch or import node-fetch
         let fetchFunction;
         if (typeof fetch === 'undefined') {
@@ -76,39 +61,40 @@ exports.handler = async (event, context) => {
         } else {
             fetchFunction = fetch;
         }
+
+        const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${RANGE}`;
         
-        const response = await fetchFunction(updateUrl, {
-            method: 'PUT',
+        console.log('Fetching sheet data with service account...');
+        
+        const response = await fetchFunction(url, {
             headers: {
                 'Authorization': `Bearer ${accessToken.token}`,
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                values: [[newPoints, currentDate]]
-            })
+                'Content-Type': 'application/json'
+            }
         });
         
         if (!response.ok) {
-            const errorData = await response.json();
-            console.error('Google Sheets update error:', errorData);
-            throw new Error(`HTTP error! status: ${response.status} - ${errorData.error?.message || 'Unknown error'}`);
+            console.error('Google Sheets API error:', response.status, response.statusText);
+            const errorText = await response.text();
+            console.error('Error response:', errorText);
+            throw new Error(`HTTP error! status: ${response.status}`);
         }
         
-        const result = await response.json();
+        const data = await response.json();
         
         return {
             statusCode: 200,
             headers,
-            body: JSON.stringify(result)
+            body: JSON.stringify(data)
         };
         
     } catch (error) {
-        console.error('Error updating points:', error);
+        console.error('Error fetching sheet data:', error);
         return {
             statusCode: 500,
             headers,
             body: JSON.stringify({ 
-                error: 'Failed to update points',
+                error: 'Failed to fetch sheet data',
                 details: error.message 
             })
         };
