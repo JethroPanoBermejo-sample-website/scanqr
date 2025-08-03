@@ -287,6 +287,7 @@
         // Staff mode variables
         let staffClickCount = 0;
         let staffModeActive = false;
+        let staffAuthenticated = false; // New authentication flag
         let clickTimer = null;
         
         // Cache for sheet data
@@ -349,19 +350,8 @@
         
         function activateStaffMode() {
             if (!staffModeActive) {
-                staffModeActive = true;
-                staffSection.style.display = 'block';
-                staffTrigger.textContent = '👨‍💼 Staff Mode Active - Click 4 times to hide';
-                staffTrigger.style.color = '#28a745';
-                staffTrigger.style.fontWeight = 'bold';
-                
-                // Smooth scroll to staff section
-                staffSection.scrollIntoView({ behavior: 'smooth' });
-                
-                // Show confirmation
-                setTimeout(() => {
-                    alert('🔓 Staff mode activated!');
-                }, 500);
+                // First show staff login prompt
+                showStaffLogin();
             } else {
                 // Deactivate staff mode
                 deactivateStaffMode();
@@ -370,12 +360,60 @@
             staffClickCount = 0;
         }
         
+        function showStaffLogin() {
+            const staffCode = prompt('🔐 Enter Staff Access Code:');
+            
+            if (staffCode) {
+                // Verify staff code via secure API
+                verifyStaffCode(staffCode);
+            }
+        }
+        
+        async function verifyStaffCode(code) {
+            try {
+                const response = await fetch('/api/verify-staff', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ staffCode: code })
+                });
+                
+                const result = await response.json();
+                
+                if (result.authenticated) {
+                    // Authentication successful
+                    staffAuthenticated = true;
+                    staffModeActive = true;
+                    staffSection.style.display = 'block';
+                    staffTrigger.textContent = '👨‍💼 Staff Mode Active - Click 4 times to hide';
+                    staffTrigger.style.color = '#28a745';
+                    staffTrigger.style.fontWeight = 'bold';
+                    
+                    // Smooth scroll to staff section
+                    staffSection.scrollIntoView({ behavior: 'smooth' });
+                    
+                    // Show confirmation
+                    setTimeout(() => {
+                        alert('🔓 Staff mode activated successfully!');
+                    }, 500);
+                } else {
+                    // Authentication failed
+                    alert('❌ Invalid staff access code. Access denied.');
+                }
+            } catch (error) {
+                console.error('Staff authentication error:', error);
+                alert('❌ Authentication error. Please try again.');
+            }
+        }
+        
         function deactivateStaffMode() {
             staffModeActive = false;
+            staffAuthenticated = false; // Clear authentication
             staffSection.style.display = 'none';
             addPointsSection.style.display = 'none';
             staffTrigger.textContent = '© 2025 Kape ni Emman - Loyalty System';
-            staffTrigger.style.color = '#999';
+            staffTrigger.style.color = '#666';
             staffTrigger.style.fontWeight = 'normal';
             currentCustomerQR = null;
             
@@ -558,6 +596,12 @@
         }
         
         async function addPoints() {
+            // Check if staff is authenticated
+            if (!staffAuthenticated) {
+                alert('❌ Please authenticate first to add points.');
+                return;
+            }
+            
             const pointsToAdd = parseInt(document.getElementById('points-to-add').value);
             
             if (!pointsToAdd || pointsToAdd < 1) {
