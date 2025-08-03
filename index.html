@@ -371,7 +371,7 @@
         
         async function verifyStaffCode(code) {
             try {
-                const response = await fetch('/api/verify-staff', {
+                const response = await fetch('/.netlify/functions/verify-staff', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -647,7 +647,7 @@
         
         // Update points in Google Sheets via secure API
         async function updatePointsInSheet(rowIndex, newPoints) {
-            const response = await fetch('/api/update-points', {
+            const response = await fetch('/.netlify/functions/update-points', {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
@@ -679,7 +679,7 @@
         // Google Sheets API function via secure backend
         async function fetchFromGoogleSheets() {
             try {
-                const response = await fetch('/api/sheet-data');
+                const response = await fetch('/.netlify/functions/sheet-data');
                 
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
