@@ -254,8 +254,8 @@
             </div>
         </div>
         
-        <!-- Staff Section -->
-        <div class="staff-section">
+        <!-- Staff Section (Hidden by default) -->
+        <div class="staff-section" id="staff-section" style="display: none;">
             <h2>👨‍💼 Staff: Add Points</h2>
             <button id="staff-scan-btn" class="scan-btn">📱 Scan to Add Points</button>
             
@@ -271,6 +271,11 @@
                 <p style="color: #666; font-size: 14px; text-align: center;">Customer: <span id="staff-customer-name">-</span></p>
             </div>
         </div>
+
+        <!-- Hidden Staff Activation Footer -->
+        <div class="footer" style="text-align: center; margin-top: 40px; padding: 20px; color: #666; font-size: 14px; border-top: 1px solid #eee;">
+            <p id="staff-trigger" style="user-select: none; padding: 10px; border-radius: 5px; transition: all 0.3s ease;">© 2025 Kape ni Emman - Loyalty System</p>
+        </div>
     </div>
 
     <script>
@@ -278,6 +283,11 @@
         const SHEET_ID = '1arfuqxGfXoYAzyZB3ZnLkByEAaQ1_j1VAFkAdeGPG24';
         // API_KEY is now handled securely on the server-side
         const POINTS_FOR_FREE_COFFEE = 100;
+        
+        // Staff mode variables
+        let staffClickCount = 0;
+        let staffModeActive = false;
+        let clickTimer = null;
         
         // Cache for sheet data
         let sheetData = {};
@@ -294,6 +304,8 @@
         const errorMessage = document.getElementById('error-message');
         const resultCard = document.getElementById('result-card');
         const addPointsSection = document.getElementById('add-points-section');
+        const staffSection = document.getElementById('staff-section');
+        const staffTrigger = document.getElementById('staff-trigger');
         
         // Initialize
         document.addEventListener('DOMContentLoaded', function() {
@@ -302,9 +314,73 @@
             document.getElementById('add-points-btn').addEventListener('click', addPoints);
             document.getElementById('refresh-data-btn').addEventListener('click', refreshData);
             
+            // Staff mode activation
+            staffTrigger.addEventListener('click', handleStaffActivation);
+            
             // Load initial data from Google Sheets
             loadSheetData();
         });
+
+        // Hidden staff mode activation
+        function handleStaffActivation() {
+            staffClickCount++;
+            
+            // Reset counter after 3 seconds of inactivity
+            if (clickTimer) {
+                clearTimeout(clickTimer);
+            }
+            
+            clickTimer = setTimeout(() => {
+                staffClickCount = 0;
+            }, 3000);
+            
+            // Show visual feedback
+            if (staffClickCount === 1) {
+                staffTrigger.style.color = '#666';
+            } else if (staffClickCount === 2) {
+                staffTrigger.style.color = '#333';
+            } else if (staffClickCount === 3) {
+                staffTrigger.style.color = '#8B4513';
+            } else if (staffClickCount === 4) {
+                // Activate staff mode!
+                activateStaffMode();
+            }
+        }
+        
+        function activateStaffMode() {
+            if (!staffModeActive) {
+                staffModeActive = true;
+                staffSection.style.display = 'block';
+                staffTrigger.textContent = '👨‍💼 Staff Mode Active - Click 4 times to hide';
+                staffTrigger.style.color = '#28a745';
+                staffTrigger.style.fontWeight = 'bold';
+                
+                // Smooth scroll to staff section
+                staffSection.scrollIntoView({ behavior: 'smooth' });
+                
+                // Show confirmation
+                setTimeout(() => {
+                    alert('🔓 Staff mode activated!');
+                }, 500);
+            } else {
+                // Deactivate staff mode
+                deactivateStaffMode();
+            }
+            
+            staffClickCount = 0;
+        }
+        
+        function deactivateStaffMode() {
+            staffModeActive = false;
+            staffSection.style.display = 'none';
+            addPointsSection.style.display = 'none';
+            staffTrigger.textContent = '© 2025 Kape ni Emman - Loyalty System';
+            staffTrigger.style.color = '#999';
+            staffTrigger.style.fontWeight = 'normal';
+            currentCustomerQR = null;
+            
+            alert('🔒 Staff mode deactivated!');
+        }
         
         // Refresh data manually
         async function refreshData() {
